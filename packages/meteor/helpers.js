@@ -62,31 +62,39 @@ _.extend(Meteor, {
     }
   },
 
+  // XXX should take a `this` argument? so far doing a lot of
+  // _wrapAsync(foo.bar).call(foo)
+  // XXX CAVEATS: can't pass a non-callback function as the last argument. can't
+  // pass undefined as a last argument. (it will be replaced by fut.resolver())
   _wrapAsync: function (fn) {
-    var self = this;
     return function (/* arguments */) {
-      var callback;
+      var self = this;
       var fut;
-      var newArgs = Array.prototype.slice.call(arguments);
-      var haveCb = newArgs.length &&
-            (newArgs[newArgs.length - 1] instanceof Function);
-      if (Meteor.isClient && ! haveCb) {
-        newArgs.push(function () { });
-        haveCb = true;
-      }
-      if (haveCb) {
-        var origCb = newArgs[newArgs.length - 1];
-        callback = Meteor.bindEnvironment(origCb, function (e) {
+      var logErr = function (e) {
+        if (e)
           Meteor._debug("Exception in callback of async function", e.stack);
-        });
-        newArgs[newArgs.length - 1] = callback;
+      };
+      var newArgs = Array.prototype.slice.call(arguments);
+      var callback;
+      if (newArgs.length && newArgs[newArgs.length - 1] instanceof Function) {
+        callback = newArgs.pop();
       } else {
-        fut = new Future();
-        newArgs[newArgs.length] = fut.resolver();
+        if (Meteor.isClient) {
+          callback = logErr;
+        } else {
+          fut = new Future();
+          callback = fut.resolver();
+        }
+        // If the last argument was undefined, we assume it means "no
+        // callback". So pop it off, to be replaced with our provided callback.
+        if (typeof(newArgs[newArgs.length - 1]) === "undefined")
+          newArgs.pop();
       }
+      newArgs.push(Meteor.bindEnvironment(callback, logErr));
       fn.apply(self, newArgs);
-      if (! haveCb)
+      if (fut)
         return fut.wait();
+      return undefined;
     };
   }
 });
