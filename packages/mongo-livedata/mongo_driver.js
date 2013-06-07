@@ -205,10 +205,9 @@ _Mongo.prototype.insert = function (collection_name, document) {
 
   try {
     var collection = self._getCollection(collection_name);
-    var future = new Future;
-    collection.insert(replaceTypes(document, replaceMeteorAtomWithMongo),
-                      {safe: true}, future.resolver());
-    future.wait();
+    var _insert = Meteor._wrapAsync(collection.insert);
+    _insert.call(collection, replaceTypes(document, replaceMeteorAtomWithMongo),
+                      {safe: true});
     // XXX We don't have to run this on error, right?
     Meteor.refresh({collection: collection_name, id: document._id});
   } finally {
@@ -248,10 +247,10 @@ _Mongo.prototype.remove = function (collection_name, selector) {
 
   try {
     var collection = self._getCollection(collection_name);
-    var future = new Future;
-    collection.remove(replaceTypes(selector, replaceMeteorAtomWithMongo),
-                      {safe: true}, future.resolver());
-    future.wait();
+    var _remove = Meteor._wrapAsync(collection.remove);
+    _remove.call(collection,
+                 replaceTypes(selector, replaceMeteorAtomWithMongo),
+                 {safe: true});
     // XXX We don't have to run this on error, right?
     self._refresh(collection_name, selector);
   } finally {
@@ -285,11 +284,10 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
     // explictly enumerate options that minimongo supports
     if (options.upsert) mongoOpts.upsert = true;
     if (options.multi) mongoOpts.multi = true;
-    var future = new Future;
-    collection.update(replaceTypes(selector, replaceMeteorAtomWithMongo),
-                      replaceTypes(mod, replaceMeteorAtomWithMongo),
-                      mongoOpts, future.resolver());
-    future.wait();
+    var _update = Meteor._wrapAsync(collection.update);
+    _update.call(collection, replaceTypes(selector, replaceMeteorAtomWithMongo),
+            replaceTypes(mod, replaceMeteorAtomWithMongo),
+            mongoOpts);
     self._refresh(collection_name, selector);
   } finally {
     write.committed();
@@ -324,9 +322,8 @@ _Mongo.prototype._ensureIndex = function (collectionName, index, options) {
   // We expect this function to be called at startup, not from within a method,
   // so we don't interact with the write fence.
   var collection = self._getCollection(collectionName);
-  var future = new Future;
-  var indexName = collection.ensureIndex(index, options, future.resolver());
-  future.wait();
+  var _ensureIndex = Meteor._wrapAsync(collection.ensureIndex);
+  var indexName = _ensureIndex.call(collection, index, options);
 };
 _Mongo.prototype._dropIndex = function (collectionName, index) {
   var self = this;
@@ -334,9 +331,8 @@ _Mongo.prototype._dropIndex = function (collectionName, index) {
   // This function is only used by test code, not within a method, so we don't
   // interact with the write fence.
   var collection = self._getCollection(collectionName);
-  var future = new Future;
-  var indexName = collection.dropIndex(index, future.resolver());
-  future.wait();
+  var _dropIndex = Meteor._wrapAsync(collection.dropIndex);
+  var indexName = _dropIndex.call(collection, index);
 };
 
 // CURSORS

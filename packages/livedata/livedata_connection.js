@@ -588,7 +588,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
   // @param callback {Optional Function}
   apply: function (name, args, options, callback) {
     var self = this;
-
     // We were passed 3 arguments. They may be either (name, args, options)
     // or (name, args, callback)
     if (!callback && typeof options === 'function') {
@@ -596,16 +595,12 @@ _.extend(Meteor._LivedataConnection.prototype, {
       options = {};
     }
     options = options || {};
+    return Meteor._wrapAsync(self._apply).call(self, name, args,
+                                               options, callback);
+  },
 
-    if (callback) {
-      // XXX would it be better form to do the binding in stream.on,
-      // or caller, instead of here?
-      callback = Meteor.bindEnvironment(callback, function (e) {
-        // XXX improve error message (and how we report it)
-        Meteor._debug("Exception while delivering result of invoking '" +
-                      name + "'", e, e.stack);
-      });
-    }
+  _apply: function (name, args, options, callback) {
+    var self = this;
 
     // Lazily allocate method ID once we know that it'll be needed.
     var methodId = (function () {
@@ -697,20 +692,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
     // At this point we're definitely doing an RPC, and we're going to
     // return the value of the RPC to the caller.
 
-    // If the caller didn't give a callback, decide what to do.
-    if (!callback) {
-      if (Meteor.isClient) {
-        // On the client, we don't have fibers, so we can't block. The
-        // only thing we can do is to return undefined and discard the
-        // result of the RPC.
-        callback = function () {};
-      } else {
-        // On the server, make the function synchronous. Throw on
-        // errors, return on success.
-        var future = new Future;
-        callback = future.resolver();
-      }
-    }
     // Send the RPC. Note that on the client, it is important that the
     // stub have finished before we send the RPC, so that we know we have
     // a complete list of which local documents the stub wrote.
@@ -745,11 +726,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
     if (self._outstandingMethodBlocks.length === 1)
       methodInvoker.sendMessage();
 
-    // If we're using the default callback on the server,
-    // block waiting for the result.
-    if (future) {
-      return future.wait();
-    }
     return undefined;
   },
 

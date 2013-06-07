@@ -369,18 +369,13 @@ _.each(["insert", "update", "remove"], function (name) {
         throwIfSelectorIsNotId(args[0], name);
       }
 
+      var wrappedCb;
       if (callback) {
-        // asynchronous: on success, callback should return ret
-        // (document ID for insert, undefined for update and
-        // remove), not the method's result.
-        self._connection.apply(self._prefix + name, args, function (error, result) {
+        wrappedCb = function (error, result) {
           callback(error, !error && ret);
-        });
-      } else {
-        // synchronous: propagate exception
-        self._connection.apply(self._prefix + name, args);
+        };
       }
-
+      self._connection.apply(self._prefix + name, args, wrappedCb);
     } else {
       // it's my collection.  descend into the collection object
       // and propagate any exception.
