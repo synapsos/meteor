@@ -322,18 +322,19 @@ _.each(["insert", "update", "remove"], function (name) {
     var self = this;
     var args = _.toArray(arguments);
     var callback;
+    var wrappedCb;
     var ret;
 
     if (args.length && args[args.length - 1] instanceof Function)
       callback = args.pop();
 
-    if (Meteor.isClient && !callback) {
-      // Client can't block, so it can't report errors by exception,
-      // only by callback. If they forget the callback, give them a
-      // default one that logs the error, so they aren't totally
-      // baffled if their writes don't work because their database is
-      // down.
+    if (Meteor.isClient && ! callback) {
       callback = function (err) {
+        // Client can't block, so it can't report errors by exception,
+        // only by callback. If they forget the callback, give them a
+        // default one that logs the error, so they aren't totally
+        // baffled if their writes don't work because their database is
+        // down.
         if (err)
           Meteor._debug(name + " failed: " + (err.reason || err.stack));
       };
@@ -356,6 +357,13 @@ _.each(["insert", "update", "remove"], function (name) {
       args[0] = Meteor.Collection._rewriteSelector(args[0]);
     }
 
+    if (callback) {
+      wrappedCb = function (error, result) {
+        // on success, return *ret*, not the connection's return value.
+        callback(error, !error && ret);
+      };
+    }
+
     if (self._connection && self._connection !== Meteor.default_server) {
       // just remote to another endpoint, propagate return value or
       // exception.
@@ -369,28 +377,13 @@ _.each(["insert", "update", "remove"], function (name) {
         throwIfSelectorIsNotId(args[0], name);
       }
 
-      var wrappedCb;
-      if (callback) {
-        wrappedCb = function (error, result) {
-          callback(error, !error && ret);
-        };
-      }
       self._connection.apply(self._prefix + name, args, wrappedCb);
     } else {
       // it's my collection.  descend into the collection object
       // and propagate any exception.
-      try {
-        self._collection[name].apply(self._collection, args);
-      } catch (e) {
-        if (callback) {
-          callback(e);
-          return null;
-        }
-        throw e;
-      }
-
-      // on success, return *ret*, not the connection's return value.
-      callback && callback(null, ret);
+      if (wrappedCb)
+        args.push(wrappedCb);
+      self._collection[name].apply(self._collection, args);
     }
 
     // both sync and async, unless we threw an exception, return ret

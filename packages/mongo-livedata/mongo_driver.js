@@ -81,6 +81,17 @@ var replaceTypes = function (document, atomTransformer) {
   return ret;
 };
 
+// var testCollectionError = function (collection_name, callback) {
+//   if (collection_name === "__meteor_failure_test_collection") {
+//     var e = new Error("Failure test");
+//     e.expected = true;
+//     if (Meteor.isClient && ! callback) {
+
+//     }
+//     if (callback) {
+//       callback(e)
+//   }
+// };
 
 _Mongo = function (url) {
   var self = this;
@@ -193,12 +204,17 @@ _Mongo.prototype._maybeBeginWrite = function () {
 // well-defined -- a write "has been made" if it's returned, and an
 // observer "has been notified" if its callback has returned.
 
-_Mongo.prototype.insert = function (collection_name, document) {
+_Mongo.prototype.insert = function (collection_name, document, callback) {
   var self = this;
   if (collection_name === "___meteor_failure_test_collection") {
     var e = new Error("Failure test");
     e.expected = true;
-    throw e;
+    if (callback) {
+      callback(e);
+      return null;
+    } else {
+      throw e;
+    }
   }
 
   var write = self._maybeBeginWrite();
@@ -207,7 +223,7 @@ _Mongo.prototype.insert = function (collection_name, document) {
     var collection = self._getCollection(collection_name);
     var _insert = Meteor._wrapAsync(collection.insert);
     _insert.call(collection, replaceTypes(document, replaceMeteorAtomWithMongo),
-                      {safe: true});
+                      {safe: true}, callback);
     // XXX We don't have to run this on error, right?
     Meteor.refresh({collection: collection_name, id: document._id});
   } finally {
@@ -234,13 +250,18 @@ _Mongo.prototype._refresh = function (collectionName, selector) {
   }
 };
 
-_Mongo.prototype.remove = function (collection_name, selector) {
+_Mongo.prototype.remove = function (collection_name, selector, callback) {
   var self = this;
 
   if (collection_name === "___meteor_failure_test_collection") {
     var e = new Error("Failure test");
     e.expected = true;
-    throw e;
+    if (callback) {
+      callback(e);
+      return null;
+    } else {
+      throw e;
+    }
   }
 
   var write = self._maybeBeginWrite();
@@ -250,7 +271,7 @@ _Mongo.prototype.remove = function (collection_name, selector) {
     var _remove = Meteor._wrapAsync(collection.remove);
     _remove.call(collection,
                  replaceTypes(selector, replaceMeteorAtomWithMongo),
-                 {safe: true});
+                 {safe: true}, callback);
     // XXX We don't have to run this on error, right?
     self._refresh(collection_name, selector);
   } finally {
@@ -258,13 +279,29 @@ _Mongo.prototype.remove = function (collection_name, selector) {
   }
 };
 
-_Mongo.prototype.update = function (collection_name, selector, mod, options) {
+_Mongo.prototype.update = function (collection_name, selector, mod, options,
+                                   callback) {
   var self = this;
+
+  if (! callback) {
+    if (options instanceof Function) {
+      callback = options;
+      options = {};
+    } else if (! options && mod instanceof Function) {
+      callback = mod;
+      mod = null;
+    }
+  }
 
   if (collection_name === "___meteor_failure_test_collection") {
     var e = new Error("Failure test");
     e.expected = true;
-    throw e;
+    if (callback) {
+      callback(e);
+      return null;
+    } else {
+      throw e;
+    }
   }
 
   // explicit safety check. null and undefined can crash the mongo
@@ -287,7 +324,7 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
     var _update = Meteor._wrapAsync(collection.update);
     _update.call(collection, replaceTypes(selector, replaceMeteorAtomWithMongo),
             replaceTypes(mod, replaceMeteorAtomWithMongo),
-            mongoOpts);
+            mongoOpts, callback);
     self._refresh(collection_name, selector);
   } finally {
     write.committed();
