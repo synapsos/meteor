@@ -588,6 +588,12 @@ _.extend(Meteor._LivedataConnection.prototype, {
   // @param callback {Optional Function}
   apply: function (name, args, options, callback) {
     var self = this;
+    return Meteor._wrapAsync(self._apply).apply(self, arguments);
+  },
+
+  _apply: function (name, args, options, callback) {
+    var self = this;
+
     // We were passed 3 arguments. They may be either (name, args, options)
     // or (name, args, callback)
     if (!callback && typeof options === 'function') {
@@ -595,12 +601,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
       options = {};
     }
     options = options || {};
-    return Meteor._wrapAsync(self._apply).call(self, name, args,
-                                               options, callback);
-  },
-
-  _apply: function (name, args, options, callback) {
-    var self = this;
 
     // Lazily allocate method ID once we know that it'll be needed.
     var methodId = (function () {

@@ -381,8 +381,7 @@ _.each(["insert", "update", "remove"], function (name) {
     } else {
       // it's my collection.  descend into the collection object
       // and propagate any exception.
-      if (wrappedCb)
-        args.push(wrappedCb);
+      args.push(wrappedCb);
       self._collection[name].apply(self._collection, args);
     }
 

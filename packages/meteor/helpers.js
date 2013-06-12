@@ -64,8 +64,13 @@ _.extend(Meteor, {
 
   // XXX should take a `this` argument? so far doing a lot of
   // _wrapAsync(foo.bar).call(foo)
-  // XXX CAVEATS: can't pass a non-callback function as the last argument. can't
-  // pass undefined as a last argument. (it will be replaced by fut.resolver())
+  // XXX CAVEATS: can't pass a non-callback function as the last argument.
+  // Removes any arguments that are undefined.
+  // To be sure that fn can be used with _wrapAsync,
+  //   - fn should not take any function arguments except the callback
+  //   - if fn's last given defined argument is a function, then fn should treat
+  //     that as the callback. fn(x, y, z, undefined, ..., undefined) should
+  //     treat z as the callback if z is a function.
   _wrapAsync: function (fn) {
     return function (/* arguments */) {
       var self = this;
@@ -76,6 +81,11 @@ _.extend(Meteor, {
       };
       var newArgs = Array.prototype.slice.call(arguments);
       var callback;
+
+      while (newArgs.length &&
+             typeof(newArgs[newArgs.length - 1]) === "undefined")
+        newArgs.pop();
+
       if (newArgs.length && newArgs[newArgs.length - 1] instanceof Function) {
         callback = newArgs.pop();
       } else {
@@ -85,10 +95,6 @@ _.extend(Meteor, {
           fut = new Future();
           callback = fut.resolver();
         }
-        // If the last argument was undefined, we assume it means "no
-        // callback". So pop it off, to be replaced with our provided callback.
-        if (typeof(newArgs[newArgs.length - 1]) === "undefined")
-          newArgs.pop();
       }
       newArgs.push(Meteor.bindEnvironment(callback, logErr));
       fn.apply(self, newArgs);
